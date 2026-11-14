@@ -99,7 +99,7 @@ def compress_payload(volume_path, output_path):
     return output_path
 
 
-def configuration(title, kernel_args, has_adt, timeout=15):
+def configuration(title, kernel_args, has_adt, timeout=15, initrd=None):
     lines = [
         'version = 1',
         '',
@@ -117,6 +117,8 @@ def configuration(title, kernel_args, has_adt, timeout=15):
         'path = "Payloads/kernel.macho"',
         'args = "%s"' % kernel_args,
     ]
+    if initrd:
+        lines.append('initrd = "%s"' % initrd)
     if not has_adt:
         raise SystemExit('an xnu entry without kernel.macho.adt cannot boot')
     # Restart and power off, as the built-in menu carries them.
@@ -137,7 +139,7 @@ def configuration(title, kernel_args, has_adt, timeout=15):
     return '\n'.join(lines) + '\n'
 
 
-def build(kernel, adt, output, size_mib, title, kernel_args, timeout=15):
+def build(kernel, adt, output, size_mib, title, kernel_args, timeout=15, initrd=None):
     for path, what in ((kernel, 'kernel'), (adt, 'ADT')):
         if not path.is_file():
             raise SystemExit('%s not found: %s' % (what, path))
@@ -150,7 +152,14 @@ def build(kernel, adt, output, size_mib, title, kernel_args, timeout=15):
 
         shutil.copyfile(kernel, payloads / 'kernel.macho')
         shutil.copyfile(adt, payloads / 'kernel.macho.adt')
-        (stage / 'EFI/UniXNU/unixnu.toml').write_text(configuration(title, kernel_args, True, timeout))
+        initrd_entry = None
+        if initrd is not None:
+            if not initrd.is_file():
+                raise SystemExit('initrd not found: %s' % initrd)
+            shutil.copyfile(initrd, payloads / 'root.img')
+            initrd_entry = 'Payloads/root.img'
+        (stage / 'EFI/UniXNU/unixnu.toml').write_text(
+            configuration(title, kernel_args, True, timeout, initrd_entry))
 
         for path in [stage, *sorted(stage.rglob('*'))]:
             os.utime(path, (EPOCH, EPOCH))
@@ -199,13 +208,15 @@ def main():
     parser.add_argument('--title', default='Adrenoline', help='menu entry title')
     parser.add_argument('--args', default='-v', help='XNU boot arguments')
     parser.add_argument('--timeout', type=int, default=15, help='menu timeout in seconds (default 15)')
+    parser.add_argument('--initrd', type=Path,
+                        help='raw root image handed to XNU as the entry initrd (RAM disk)')
     parser.add_argument('--lzma', action='store_true',
                         help='wrap the volume in an LZMA-alone stream for the firmware to expand')
     arguments = parser.parse_args()
 
     report = build(arguments.kernel, arguments.adt, arguments.output,
                    arguments.size_mib, arguments.title, arguments.args,
-                   arguments.timeout)
+                   arguments.timeout, arguments.initrd)
     if arguments.lzma:
         compressed = arguments.output.with_suffix('.img.lzma')
         compress_payload(arguments.output, compressed)

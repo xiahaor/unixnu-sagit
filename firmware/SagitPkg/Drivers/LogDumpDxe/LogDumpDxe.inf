@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = LogDumpDxe
+  FILE_GUID      = 6f2a1c74-9b3e-4a5c-9e21-3d5b7f8c0a11
+  MODULE_TYPE    = DXE_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = LogDumpDxeEntry
+
+[Sources]
+  LogDumpDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  DebugLib
+  BaseMemoryLib
+  MemoryAllocationLib
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiGraphicsOutputProtocolGuid
+
+[Depex]
+  gEfiGraphicsOutputProtocolGuid

@@ -1,0 +1,42 @@
+--- a/osfmk/kern/printf.c
++++ b/osfmk/kern/printf.c
+@@ -856,9 +856,39 @@
+ #endif
+ }
+ 
++/* LOCAL: mirror the console into a fixed reserved physical page (0x85800000,
++ * a "removed" DRAM window in the board device tree) so the next Android/recovery
++ * boot can read the previous XNU boot's log without a camera. */
++#define SAGIT_LOG_PHYS 0x85800000UL
++#define SAGIT_LOG_MAX  0x8000
++extern unsigned long ml_static_ptovirt(unsigned long);
++
++static void
++sagit_log_putc(char c)
++{
++	static volatile unsigned char *dst;
++	static unsigned off;
++
++	if (!dst) {
++		unsigned long va = ml_static_ptovirt(SAGIT_LOG_PHYS);
++		if (!va) {
++			return;
++		}
++		dst = (volatile unsigned char *)va;
++		dst[0] = 'S'; dst[1] = 'A'; dst[2] = 'G'; dst[3] = 'I';
++		dst[4] = 'T'; dst[5] = 'L'; dst[6] = 'O'; dst[7] = 'G';
++		*(volatile unsigned int *)(dst + 8) = 0;
++	}
++	if (off < SAGIT_LOG_MAX - 1) {
++		dst[16 + off++] = (unsigned char)c;
++		*(volatile unsigned int *)(dst + 8) = off;
++	}
++}
++
+ void
+ cons_putc_locked(char c)
+ {
++	sagit_log_putc(c);
+ 	if (!disableConsoleOutput) {
+ 		console_write_char(c);
+ 	}

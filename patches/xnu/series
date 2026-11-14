@@ -46,5 +46,30 @@
 ../0024-sagit-xnu8796-vfs-getvfs-vfsops.patch
 ../0028-sagit-panic-console-double.patch
 ../0029-sagit-iodt-interrupt-null-guard.patch
+# The device-local MSM8998 UFS driver is a static class: it must be registered
+# once IOKit exists, and its DT personality must be present for matching.
+../0030-sagit-ufs-startup-hook.patch
+../0031-sagit-ufs-personality.patch
+# A duplicate class (e.g. the prelinked IOStorageFamily loading over the source-built
+# one) must fail the kext load, not panic the kernel on iOS.
+../0032-sagit-duplicate-class-log.patch
+# Mirror the kernel console into a reserved DRAM page so the previous boot's
+# log can be read from recovery without photographing the screen.
+../0033-sagit-log-to-reserved-page.patch
+# Match the RAM-disk block device against the platform expert device so
+# RamBlock publishes the ADT RAMDisk as IOMedia.
+../0034-sagit-ramblock-personality.patch
+# Register the source-built HFS+ right after vfsinit so the RAM-disk root mount
+# finds a filesystem.
+../0035-sagit-hfs-register.patch
+# The source-built HFS+ cannot tag IOMedia content yet, so the root-device
+# default match must accept the RAM-disk media without the Content filter.
+../0036-sagit-root-media-match.patch
+# The bring-up root is an unsigned RAM-disk volume; skip the sealed-root ioctl.
+../0037-sagit-root-auth-skip.patch
+# Keep mockfs from grabbing the root mount; the RAM-disk HFS+ must win.
+../0040-sagit-no-mockfs-mountroot.patch
+# AMFI kext is absent during bring-up; entitlement queries must not dereference NULL.
+../0041-sagit-no-amfi-entitlements.patch
 ../0007-sagit-cpu-clusters.patch
 # ../0006-sagit-boot-ladder.patch   # ported after the plain 8796 build links

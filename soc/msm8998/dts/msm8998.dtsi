@@ -124,6 +124,15 @@
 			redistributor-stride = <0 0x20000>;
 		};
 
+		// Read-only warm-link UFS host controller, consumed by the device-local
+		// NativeUfs driver ported from the OnePlus 5 port (same MSM8998 UFS).
+		ufshc: ufshc@1da4000 {
+			compatible = "qcom,ufshc";
+			unixnu,adt-name = "ufshc";
+			reg = <0 0x1da4000 0 0x2500>;
+			p8,msm8998-direct-dma = <1>;
+		};
+
 		// ARMv8 generic timer. Four PPIs, in the order the ARM binding
 		// uses: secure physical, non-secure physical, virtual,
 		// hypervisor. The GIC specifiers are <type 1 (PPI) number flags>.

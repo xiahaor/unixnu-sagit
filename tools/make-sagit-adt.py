@@ -270,11 +270,13 @@ def generate(dtb: Path, dram_size: int, chip_id: int, unique_chip_id: int,
     # Apple tree.  The DTS carries the matching "master" value.
     devicetree.FLAGS.discard("interrupt-controller")
     devicetree.STRINGS.add("interrupt-controller")
+    # data=True adds /chosen/memory-map with a 16-byte RAMDisk placeholder that
+    # DarwinBoot fills with the payload initrd; RamBlock turns it into IOMedia.
     nodes = devicetree.generate(
         dtb,
         configuration(dram_size, chip_id, unique_chip_id),
         unique_chip_id=f"{unique_chip_id:x}",
-        data=False,
+        data=True,
         trust=False,
         addon=False,
     )

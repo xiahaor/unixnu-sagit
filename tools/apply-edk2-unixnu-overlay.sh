@@ -337,4 +337,48 @@ with open(path, 'w', encoding='utf-8', newline='') as f:
 print('patched  Platforms/Msm8998Pkg/Device/xiaomi/sagit/sagit.fdf')
 PY
 
+# ---------------------------------------------------------------------------
+# 6. log dump: UFS block I/O + a driver that copies the previous XNU boot's
+#    console from the reserved DRAM page into the boot partition's free tail.
+# ---------------------------------------------------------------------------
+python3 - "$DSC" "$ROOT/Platforms/Msm8998Pkg/Device/xiaomi/sagit/sagit.fdf" <<'PY'
+import os
+import sys
+
+dsc, fdf = sys.argv[1], sys.argv[2]
+
+with open(dsc, encoding='utf-8', newline='') as f:
+    text = f.read()
+if 'SagitPkg/Drivers/LogDumpDxe' not in text:
+    anchor = '  SagitPkg/Drivers/ReportDxe/ReportDxe.inf\n'
+    if anchor not in text:
+        sys.exit('%s: ReportDxe anchor not found' % dsc)
+    text = text.replace(anchor, anchor + '  SagitPkg/Drivers/LogDumpDxe/LogDumpDxe.inf\n', 1)
+    with open(dsc, 'w', encoding='utf-8', newline='') as f:
+        f.write(text)
+    print('patched  sagit.dsc (SagitLogDumpDxe)')
+
+with open(fdf, encoding='utf-8', newline='') as f:
+    text = f.read()
+if os.environ.get('SAGIT_LOGDXE') != '1':  # dumper is opt-in: it hung the UI
+    block = '  INF SagitPkg/Drivers/LogDumpDxe/LogDumpDxe.inf\n'
+    if block in text:
+        with open(fdf, 'w', encoding='utf-8', newline='') as f:
+            f.write(text.replace(block, '', 1))
+        print('patched  sagit.fdf (LogDumpDxe removed for the control build)')
+elif 'LogDumpDxe' not in text:
+    anchor = '  INF SagitPkg/Drivers/ReportDxe/ReportDxe.inf\n'
+    if anchor not in text:
+        sys.exit('%s: ReportDxe FDF anchor not found' % fdf)
+    block = (
+        '  # The log dumper needs block I/O only; UFSDxe itself comes from\n'
+        '  # Msm8998Binaries/sagit/dxe.inc (already part of this firmware).\n'
+        '  INF SagitPkg/Drivers/LogDumpDxe/LogDumpDxe.inf\n'
+    )
+    text = text.replace(anchor, anchor + block, 1)
+    with open(fdf, 'w', encoding='utf-8', newline='') as f:
+        f.write(text)
+    print('patched  sagit.fdf (LogDumpDxe)')
+PY
+
 printf '== done: %d added, %d updated, %d unchanged\n' "$ADDED" "$UPDATED" "$UNCHANGED"

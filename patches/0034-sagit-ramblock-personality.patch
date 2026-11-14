@@ -1,0 +1,14 @@
+--- a/iokit/KernelConfigTables.cpp
++++ b/iokit/KernelConfigTables.cpp
+@@ -52,6 +52,11 @@
+     "     'IOProbeScore'    = 5000:32;"
+     "   },"
+     "   {"
++    "     'IOClass'         = NativeRamBlock;"
++    "     'IOProviderClass' = IOPlatformExpertDevice;"
++    "     'IOProbeScore'    = 900:32;"
++    "   },"
++    "   {"
+     "     'IOClass'         = NativeUfs;"
+     "     'IOProviderClass' = IOPlatformDevice;"
+     "     'IONameMatch'     = 'qcom,ufshc';"

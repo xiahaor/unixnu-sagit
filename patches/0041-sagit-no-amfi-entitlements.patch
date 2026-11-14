@@ -1,0 +1,47 @@
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -1492,6 +1492,14 @@
+ 	}
+ 	proc_t proc = (proc_t)get_bsdtask_info(task);
+ 
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	/* LOCAL: the AMFI kext is not part of the bring-up prelink; no entitlement
++	 * source exists yet, so report "no entitlement" instead of dereferencing
++	 * a NULL interface. */
++	if (amfi == NULL) {
++		return false;
++	}
++#endif
+ 	kern_return_t ret = amfi->OSEntitlements.queryEntitlementStringWithProc(
+ 		proc,
+ 		entitlement,
+@@ -1523,6 +1531,14 @@
+ 	}
+ 	proc_t proc = (proc_t)get_bsdtask_info(task);
+ 
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	/* LOCAL: the AMFI kext is not part of the bring-up prelink; no entitlement
++	 * source exists yet, so report "no entitlement" instead of dereferencing
++	 * a NULL interface. */
++	if (amfi == NULL) {
++		return false;
++	}
++#endif
+ 	kern_return_t ret = amfi->OSEntitlements.queryEntitlementBooleanWithProc(
+ 		proc,
+ 		entitlement);
+@@ -1556,6 +1572,14 @@
+ 	}
+ 	proc_t proc = (proc_t)get_bsdtask_info(task);
+ 
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	/* LOCAL: the AMFI kext is not part of the bring-up prelink; no entitlement
++	 * source exists yet, so report "no entitlement" instead of dereferencing
++	 * a NULL interface. */
++	if (amfi == NULL) {
++		return NULL;
++	}
++#endif
+ 	kern_return_t ret = amfi->OSEntitlements.copyEntitlementAsOSObjectWithProc(
+ 		proc,
+ 		entitlement,

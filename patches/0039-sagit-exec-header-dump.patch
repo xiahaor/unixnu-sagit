@@ -1,0 +1,22 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2218,6 +2218,19 @@
+ 	if (resid) {
+ 		memset(imgp->ip_vdata + (PAGE_SIZE - resid), 0x0, resid);
+ 	}
++
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	/* LOCAL: what does the RAM-disk root actually hand to exec? */
++	if (imgp->ip_vdata) {
++		const unsigned char *m = (const unsigned char *)imgp->ip_vdata;
++		struct mount *mt = (rootvnode && rootvnode->v_mount) ? rootvnode->v_mount : NULL;
++		printf("sagit exec: path=%s size=%lld mode=%o hdr=%02x%02x%02x%02x resid=%ld rootfs=%s rootsz=%lld\n",
++		    excpath, (long long)imgp->ip_vattr->va_data_size, imgp->ip_vattr->va_mode,
++		    m[0], m[1], m[2], m[3], (long)resid,
++		    mt ? mt->mnt_vfsstat.f_fstypename : "?",
++		    (rootvnode && rootvnode->v_mount) ? (long long)rootvnode->v_mount->mnt_vfsstat.f_bsize : -1);
++	}
++#endif
+ 
+ encapsulated_binary:
+ 	/* Limit the number of iterations we will attempt on each binary */

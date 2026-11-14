@@ -43,6 +43,48 @@
 #include <Protocol/DevicePath.h>
 #include <Protocol/DiskIo.h>
 
+//
+// The payload volume may travel LZMA-compressed: a self-describing header and
+// an LZMA-alone stream that expands to the FAT volume the loader reads.  The
+// Mi 6 bootloader refuses boot images whose ramdisk section exceeds roughly
+// 36 MiB, so the 40+ MiB prelinked-kernel volume travels packed and is
+// expanded here, before the block device is published.
+// (Ported from UniXNURamDiskDxe, patch 0027-unixnu-ramdisk-lzma.)
+//
+#define LZMA_PAYLOAD_MAGIC  SIGNATURE_64 ('U', 'N', 'X', 'L', 'Z', 'M', 'A', '1')
+
+#pragma pack(1)
+typedef struct {
+  UINT64    Magic;
+  UINT32    Version;
+  UINT32    HeaderSize;
+  UINT64    StoredSize;
+  UINT64    ExpandedSize;
+  UINT32    StreamCrc;
+  UINT32    RawCrc;
+  UINT8     Reserved[32];
+} LZMA_PAYLOAD_HEADER;
+#pragma pack()
+
+// Raw entry points of MdeModulePkg/Library/LzmaCustomDecompressLib.
+EFI_STATUS
+EFIAPI
+LzmaUefiDecompressGetInfo (
+  IN  CONST VOID  *Source,
+  IN  UINT32      SourceSize,
+  OUT UINT32      *DestinationSize,
+  OUT UINT32      *ScratchSize
+  );
+
+EFI_STATUS
+EFIAPI
+LzmaUefiDecompress (
+  IN  CONST VOID  *Source,
+  IN  UINTN       SourceSize,
+  IN  VOID        *Destination,
+  IN  VOID        *Scratch
+  );
+
 #define FDT_MAGIC          0xd00dfeedU
 #define FDT_BEGIN_NODE     1U
 #define FDT_END_NODE       2U
@@ -77,6 +119,7 @@ STATIC RAMDISK_DEVICE_PATH  mDevicePath = {
 };
 
 STATIC UINT8                    *mRamBase;
+STATIC BOOLEAN                  mPayloadCompressed;
 STATIC EFI_BLOCK_IO_MEDIA       mMedia;
 
 STATIC
@@ -405,6 +448,38 @@ PlatformFdt (
 }
 
 /**
+  Recognise a compressed payload at Address and return its stored extent.
+
+  Returns FALSE for anything that is not a plausible UNXLZMA1 stream, so the
+  caller can fall through to the raw FAT probe.
+**/
+STATIC
+BOOLEAN
+LzmaPayloadAt (
+  IN  EFI_PHYSICAL_ADDRESS  Address,
+  OUT UINT64                *Stored
+  )
+{
+  CONST LZMA_PAYLOAD_HEADER  *Header = (CONST LZMA_PAYLOAD_HEADER *)(UINTN)Address;
+
+  if (Header->Magic != LZMA_PAYLOAD_MAGIC) {
+    return FALSE;
+  }
+  if ((Header->Version != 1) || (Header->HeaderSize != sizeof (LZMA_PAYLOAD_HEADER))) {
+    return FALSE;
+  }
+  if ((Header->StoredSize < 64) || (Header->ExpandedSize < 2048 * RAMDISK_BLOCK_SIZE)) {
+    return FALSE;
+  }
+  if ((Header->ExpandedSize % RAMDISK_BLOCK_SIZE) != 0) {
+    return FALSE;
+  }
+
+  *Stored = Header->HeaderSize + Header->StoredSize;
+  return TRUE;
+}
+
+/**
   Recognise the payload volume by its boot sector and return its size.
 
   The volume is self-describing: FAT records its own extent in the boot
@@ -530,6 +605,13 @@ ScanForPayload (
     Base = Desc->PhysicalStart;
     for (Offset = 0; Offset + RAMDISK_BLOCK_SIZE <= Region; Offset += RAMDISK_BLOCK_SIZE) {
       CONST UINT8  *Br = (CONST UINT8 *)(UINTN)(Base + Offset);
+
+      if (LzmaPayloadAt (Base + Offset, Length)) {
+        mPayloadCompressed = TRUE;
+        *Found             = Base + Offset;
+        FreePool (Map);
+        return EFI_SUCCESS;
+      }
 
       if (!FatVolumeAt (Base + Offset, Length)) {
         continue;
@@ -744,6 +826,76 @@ RamDiskFlushBlocks (
   return EFI_SUCCESS;
 }
 
+/**
+  Expand the compressed payload at Address and publish the volume it holds.
+**/
+STATIC
+EFI_STATUS
+PublishCompressedPayload (
+  IN EFI_PHYSICAL_ADDRESS  Address,
+  IN UINT64                StoredLength
+  )
+{
+  CONST LZMA_PAYLOAD_HEADER  *Header;
+  CONST UINT8                *Stream;
+  UINT32                     DestinationSize;
+  UINT32                     ScratchSize;
+  VOID                       *Scratch;
+  UINT8                      *Expanded;
+  UINT32                     Crc;
+  EFI_STATUS                 Status;
+
+  Header = (CONST LZMA_PAYLOAD_HEADER *)(UINTN)Address;
+  if ((StoredLength <= sizeof (LZMA_PAYLOAD_HEADER)) ||
+      (Header->StoredSize > StoredLength - sizeof (LZMA_PAYLOAD_HEADER)))
+  {
+    ReportStatusFmt ("lzma 0x%lx: header overruns the section", Address);
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Stream = (CONST UINT8 *)(UINTN)Address + Header->HeaderSize;
+  Status = LzmaUefiDecompressGetInfo (Stream, (UINT32)Header->StoredSize,
+                                     &DestinationSize, &ScratchSize);
+  if (EFI_ERROR (Status) || (DestinationSize != Header->ExpandedSize)) {
+    ReportStatusFmt ("lzma 0x%lx: info failed %r size %u", Address, Status, DestinationSize);
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Expanded = AllocatePages (EFI_SIZE_TO_PAGES (DestinationSize));
+  if (Expanded == NULL) {
+    ReportStatusFmt ("lzma 0x%lx: no room for 0x%x", Address, DestinationSize);
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  Scratch = AllocatePool (ScratchSize);
+  if (Scratch == NULL) {
+    FreePages (Expanded, EFI_SIZE_TO_PAGES (DestinationSize));
+    ReportStatusFmt ("lzma 0x%lx: no scratch", Address);
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  Status = LzmaUefiDecompress (Stream, Header->StoredSize, Expanded, Scratch);
+  FreePool (Scratch);
+  if (EFI_ERROR (Status)) {
+    FreePages (Expanded, EFI_SIZE_TO_PAGES (DestinationSize));
+    ReportStatusFmt ("lzma 0x%lx: decode failed %r", Address, Status);
+    return Status;
+  }
+
+  Crc = CalculateCrc32 (Expanded, DestinationSize);
+  if (Crc != Header->RawCrc) {
+    FreePages (Expanded, EFI_SIZE_TO_PAGES (DestinationSize));
+    ReportStatusFmt ("lzma 0x%lx: CRC %08x != %08x", Address, Crc, Header->RawCrc);
+    return EFI_VOLUME_CORRUPTED;
+  }
+
+  Status = PublishPayload ((EFI_PHYSICAL_ADDRESS)(UINTN)Expanded, DestinationSize);
+  if (!EFI_ERROR (Status)) {
+    ReportStatusFmt ("ok: lzma 0x%lx expanded to 0x%x", Address, DestinationSize);
+  }
+  return Status;
+}
+
 EFI_STATUS
 EFIAPI
 SagitRamDiskDxeEntry (
@@ -788,6 +940,19 @@ SagitRamDiskDxeEntry (
   // Either no tree, or no usable initrd in it. The boot image declares where
   // ABL was told to put the volume; the boot sector says whether it arrived.
   Probe = PcdGet64 (PcdPayloadProbeAddress);
+
+  // A compressed payload is not a FAT volume: recognise it before the
+  // boot-sector probe and expand it before publishing.
+  if (LzmaPayloadAt (Probe, &Length)) {
+    Status = PublishCompressedPayload (Probe, Length);
+    if (!EFI_ERROR (Status)) {
+      ReportStatusFmt ("ok: compressed payload at probe 0x%lx", Probe);
+    } else {
+      ReportStatusFmt ("probe 0x%lx: compressed payload failed %r", Probe, Status);
+    }
+    return EFI_SUCCESS;
+  }
+
   if (FatVolumeAt (Probe, &Length)) {
     Status = PublishPayload (Probe, Length);
     if (!EFI_ERROR (Status)) {
@@ -804,8 +969,12 @@ SagitRamDiskDxeEntry (
   // ABL copies the ramdisk but places it wherever it likes; find it by shape.
   Status = ScanForPayload (&Start, &Length);
   if (!EFI_ERROR (Status)) {
-    ReportStatusFmt ("scan: found payload at 0x%lx", Start);
-    if (!EFI_ERROR (PublishPayload (Start, Length))) {
+    ReportStatusFmt ("scan: found payload at 0x%lx%s", Start,
+                     mPayloadCompressed ? " (compressed)" : "");
+    if (!EFI_ERROR (mPayloadCompressed
+                      ? PublishCompressedPayload (Start, Length)
+                      : PublishPayload (Start, Length)))
+    {
       ReportStatusFmt ("ok: payload at 0x%lx found by scan", Start);
       return EFI_SUCCESS;
     }

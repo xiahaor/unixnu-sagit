@@ -1,0 +1,12 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -1315,6 +1315,9 @@
+ 	 * Actually load the image file we previously decided to load.
+ 	 */
+ 	lret = load_machfile(imgp, mach_header, thread, &map, &load_result);
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	printf("sagit exec: load_machfile lret=%d\n", (int)lret);
++#endif
+ 	if (lret != LOAD_SUCCESS) {
+ 		error = load_return_to_errno(lret);
+ 

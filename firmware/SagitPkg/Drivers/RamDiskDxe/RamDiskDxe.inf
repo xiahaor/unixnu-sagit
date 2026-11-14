@@ -32,6 +32,7 @@
   UefiDriverEntryPoint
   UefiLib
   UefiRuntimeServicesTableLib
+  LzmaCustomDecompressLib
 
 [Guids]
   gFdtTableGuid

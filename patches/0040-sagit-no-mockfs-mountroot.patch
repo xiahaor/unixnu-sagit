@@ -1,0 +1,15 @@
+--- a/bsd/vfs/vfs_conf.c
++++ b/bsd/vfs/vfs_conf.c
+@@ -202,7 +202,12 @@
+ 		.vfc_typenum = FT_MOCKFS,
+ 		.vfc_refcount = 0,
+ 		.vfc_flags = MNT_LOCAL,
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++		/* LOCAL: the RAM-disk HFS+ must be the root, not the mock test filesystem. */
++		.vfc_mountroot = NULL,
++#else
+ 		.vfc_mountroot = mockfs_mountroot,
++#endif
+ 		.vfc_next = NULL,
+ 		.vfc_reserved1 = 0,
+ 		.vfc_reserved2 = 0,

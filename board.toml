@@ -42,7 +42,11 @@ archives = [
   "component:ArmDTPlatform",
   "component:ArmCpu",
   "component:RamBlock",
+  "build-sagit-ramblock-stub.py",
+  "build-sagit-hfs.py",
   "build-mockfs-fixture.py",
+  "build-native-ufs.py",
+  "build-source-storage-arm64.py",
 ]
 
 [device_tree]

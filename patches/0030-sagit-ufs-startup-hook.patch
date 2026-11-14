@@ -1,0 +1,14 @@
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -715,6 +715,11 @@
+ 	vm_commpage_text_init();
+ 
+ #if CONFIG_MACF
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	extern void cheeseburger_ufs_register(void);
++	kernel_bootstrap_log("cheeseburger_ufs_register");
++	cheeseburger_ufs_register();
++#endif
+ 	kernel_bootstrap_log("mac_policy_initmach");
+ 	mac_policy_initmach();
+ #if CONFIG_VNGUARD

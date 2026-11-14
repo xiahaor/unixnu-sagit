@@ -1,0 +1,16 @@
+--- a/bsd/uxkern/ux_exception.c
++++ b/bsd/uxkern/ux_exception.c
+@@ -58,6 +58,13 @@
+     mach_exception_subcode_t   subcode)
+ {
+ 	int machine_signal = 0;
++
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	if (current_proc() != NULL && proc_getpid(current_proc()) == 1) {
++		printf("sagit ux_exception: exc=%d code=%lld subcode=%lld\n",
++		    (int)exception, (long long)code, (long long)subcode);
++	}
++#endif
+ 
+ 	/* Try machine-dependent translation first. */
+ 	if ((machine_signal = machine_exception(exception, code, subcode)) != 0) {

@@ -1,0 +1,23 @@
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -1194,6 +1194,9 @@
+ 	}
+ 
+ 	exc = EXC_BAD_ACCESS;
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	printf("sagit user PC-align: pc=%llx\n", (unsigned long long)get_saved_state_pc(ss));
++#endif
+ #if __has_feature(ptrauth_calls)
+ 	if (user_fault_addr_matches_pac_error_code(get_saved_state_pc(ss), false)) {
+ 		exc |= EXC_PTRAUTH_BIT;
+@@ -1225,6 +1228,10 @@
+ 	}
+ #endif /* __has_feature(ptrauth_calls) */
+ 
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	printf("sagit user SP-align: sp=%llx pc=%llx\n",
++	    (unsigned long long)get_saved_state_sp(ss), (unsigned long long)get_saved_state_pc(ss));
++#endif
+ 	codes[0] = EXC_ARM_SP_ALIGN;
+ 	codes[1] = get_saved_state_sp(ss);
+ 

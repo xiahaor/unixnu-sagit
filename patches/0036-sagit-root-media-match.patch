@@ -1,0 +1,16 @@
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -848,7 +848,13 @@
+ 
+ 		matching = IOService::serviceMatching( "IOMedia" );
+ 		assert(matching);
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++		/* LOCAL: the source-built HFS+ registers the VFS but cannot tag IOMedia
++		 * contents, so match the RAM-disk media directly (it is the only one). */
++		astring = NULL;
++#else
+ 		astring = OSString::withCStringNoCopy("Apple_HFS");
++#endif
+ 		if (astring) {
+ 			matching->setObject("Content", astring);
+ 			astring->release();

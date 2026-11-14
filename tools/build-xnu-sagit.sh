@@ -67,8 +67,16 @@ fi
 # and compile their own sources with arm64-apple-ios17.0. Take the target from
 # the same OS profile as the kernel instead, so a 16.0 build stays 16.0 from
 # the first object to the final link.
+# LOCAL ADAPTATION (2026-11-13): upstream now carries scripts/kernel_target.py,
+# which reads UNIXNU_XNU_ARCH / UNIXNU_IOS_VERSION and audits every archive
+# object against the selected profile.  The patch below predates that module and
+# no longer applies; skip it when the module is what the builders import.
 if ! grep -q "DEPLOYMENT_TARGET = os.environ" "$SRC/scripts/build-libpthread-kernel.py"; then
-  git -C "$SRC" apply "$PATCHES/0018-unixnu-archive-deployment.patch"
+  if grep -q "from kernel_target import" "$SRC/scripts/build-libpthread-kernel.py"; then
+    echo "== 0018: upstream kernel_target.py already parameterises the deployment; skipped"
+  else
+    git -C "$SRC" apply "$PATCHES/0018-unixnu-archive-deployment.patch"
+  fi
 fi
 
 # 8796's MakeInc.kernel predates the .noctf kernel naming; the seal step and
@@ -99,6 +107,13 @@ fi
 # and the CPU-cluster fix. The resolver applies the full selected series —
 # arch, SoC, OS, then device, ladder last — on a fresh clone whenever the
 # inputs change, so no install-into-the-shared-glob dance is needed any more.
+
+# The public storage family is compiled in by the device repo, so the baseline
+# accepts RAM block as source-storage backed; force-load RamBlock explicitly
+# (it has no source-storage archive on this board).
+export XNU_SOURCE_STORAGE=1
+TREE_DIR="$SRC/out/sagit/ios-16.7.16-20H392/sagit/tree"
+export XNU_EXTRA_LD_ARCHIVES="-Wl,-force_load,$TREE_DIR/build/ram-block/libRamBlock.a -Wl,-force_load,$TREE_DIR/build/hfs-src-arm64/libHfsSource.a"
 
 cd "$SRC"
 

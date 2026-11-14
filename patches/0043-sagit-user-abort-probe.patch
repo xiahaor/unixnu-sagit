@@ -1,0 +1,14 @@
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -1416,6 +1416,11 @@
+ 			panic("vm_fault() KERN_FAILURE from user fault on thread %p", thread);
+ 		}
+ 
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++		printf("sagit user abort: vm addr=%llx esr=%x fsc=%d type=%x result=%d pc=%llx\n",
++		    (unsigned long long)fault_addr, esr, fault_code, fault_type, (int)result,
++		    (unsigned long long)get_saved_state_pc(state));
++#endif
+ 		codes[0] = result;
+ 	} else if (is_alignment_fault(fault_code)) {
+ 		kern_return_t vmfkr = KERN_SUCCESS;

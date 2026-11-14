@@ -1,0 +1,18 @@
+--- a/bsd/vfs/vfs_init.c
++++ b/bsd/vfs/vfs_init.c
+@@ -418,6 +418,15 @@
+ #endif
+ 
+ 	nspace_resolver_init();
++
++#if defined(ARM64_BOARD_CONFIG_BCM2837)
++	/* LOCAL: register the source-built HFS+ once the VFS tables are ready. */
++	{
++		extern int sagit_hfs_register(void);
++		int hfs_ret = sagit_hfs_register();
++		printf("sagit hfs register: %d\n", hfs_ret);
++	}
++#endif
+ }
+ 
+ void
