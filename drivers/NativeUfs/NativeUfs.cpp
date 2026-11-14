@@ -198,36 +198,16 @@ bool NativeUfs::start(IOService *provider){
  IOLog("P8 UFS warm state CAP=%x VER=%x HCE=%x HCS=%x\n",rd(0),rd(8),rd(0x34),rd(0x30));
  IOLog("P8 UFS rings UT = %x:%x UTMR = %x:%x IS=%x HCS2=%x\n",rd(0x50),rd(0x54),rd(0x60),rd(0x64),rd(0x20),rd(0x30));
 
-	// Read-only probe of the bootloader's command ring. UTRLBA/UTRLBAU give the
-	// ring base; if the firmware used identity DMA the page is plain RAM.
-	{
-		UInt64 utr=((UInt64)rd(0x54)<<32)|rd(0x50);
-		auto *ring=IOMemoryDescriptor::withPhysicalAddress((IOPhysicalAddress)utr,0x1000,kIODirectionIn);
-		if(ring){
-			IOMemoryMap *rm=ring->map();
-			if(rm){
-				volatile UInt32 *rp=(volatile UInt32*)rm->getVirtualAddress();
-				IOLog("P8 UFS ring@%llx: %x %x %x %x %x %x %x %x\n",(unsigned long long)utr,
-				    rp[0],rp[1],rp[2],rp[3],rp[4],rp[5],rp[6],rp[7]);
-				rm->release();
-			}
-			ring->release();
-		}else{
-			IOLog("P8 UFS ring map failed for %llx\n",(unsigned long long)utr);
-		}
-	}
+ // Queue takeover stays disabled for now: the bootloader leaves the controller
+ // in an error state (IS bit 0x400) where stopping/clearing the transfer list
+ // wedges it. The read-only warm-link diagnostics above are kept on purpose.
  IOLog("P8 UFS queue takeover disabled; RAM-disk root path is active\n");
  return false;
+
  if(!(rd(0x34)&1)||(rd(0x30)&3)!=3||(rd(0x20)&kUfsFatalStatus)||rd(0x58)||rd(0x78)){IOLog("P8 UFS requires idle, live firmware link; no reset attempted\n");return false;}
  dma=IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,kIODirectionInOut|kIOMemoryPhysicallyContiguous|kIOMemoryMapperNone,kDmaBytes,4096);
  lock=IOLockAlloc();if(!dma||!lock)return false;mem=(UInt8*)dma->getBytesNoCopy();IOByteCount contiguous=0;phys=dma->getPhysicalSegment(0,&contiguous,kIOMemoryMapperNone);
  if(!phys||(phys&4095)||contiguous<kDmaBytes||(!(rd(0)&(1<<24))&&phys+kDmaBytes>0x100000000ULL))return false;
- bzero(mem,kDmaBytes);clean(mem,kDmaBytes);
- oldRun=rd(0x60);oldLo=rd(0x50);oldHi=rd(0x54);oldIE=rd(0x24);
- wr(0x60,0);if(!wait(0x60,1,0,10000)||rd(0x58))return false;
- // Own queue allocation, never CPU-write firmware's descriptors or SMMU tables.
- wr(0x24,0);wr(0x50,(UInt32)phys);wr(0x54,phys>>32);installed=true;wr(0x60,1);
- if(!wait(0x60,1,1,10000)||!nop()){IOLog("P8 UFS NOP failed; no retry\n");return false;}
  IOLog("P11 UFS NOP completed; enumerating read-only LUNs\n");
  UInt8 report[256]={},cdb[16]={};unsigned received=0;cdb[0]=0xa0;put32(cdb+6,sizeof(report));
  if(!command(0,cdb,sizeof(report),report,&received)){IOLog("P8 UFS REPORT LUNS failed\n");return false;}
