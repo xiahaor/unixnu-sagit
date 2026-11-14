@@ -196,8 +196,26 @@ bool NativeUfs::start(IOService *provider){
  auto *desc=IOMemoryDescriptor::withPhysicalAddress(0x1da4000,0x2500,kIODirectionInOut);if(!desc)return false;
  hcMap=desc->map();desc->release();if(!hcMap)return false;hc=hcMap->getVirtualAddress();
  IOLog("P8 UFS warm state CAP=%x VER=%x HCE=%x HCS=%x\n",rd(0),rd(8),rd(0x34),rd(0x30));
- // LOCAL: queue takeover faults here (descriptors outside the firmware SMMU mapping);
- // stop before touching the controller and keep the boot up for inspection.
+ IOLog("P8 UFS rings UT = %x:%x UTMR = %x:%x IS=%x HCS2=%x\n",rd(0x50),rd(0x54),rd(0x60),rd(0x64),rd(0x20),rd(0x30));
+
+	// Read-only probe of the bootloader's command ring. UTRLBA/UTRLBAU give the
+	// ring base; if the firmware used identity DMA the page is plain RAM.
+	{
+		UInt64 utr=((UInt64)rd(0x54)<<32)|rd(0x50);
+		auto *ring=IOMemoryDescriptor::withPhysicalAddress((IOPhysicalAddress)utr,0x1000,kIODirectionIn);
+		if(ring){
+			IOMemoryMap *rm=ring->map();
+			if(rm){
+				volatile UInt32 *rp=(volatile UInt32*)rm->getVirtualAddress();
+				IOLog("P8 UFS ring@%llx: %x %x %x %x %x %x %x %x\n",(unsigned long long)utr,
+				    rp[0],rp[1],rp[2],rp[3],rp[4],rp[5],rp[6],rp[7]);
+				rm->release();
+			}
+			ring->release();
+		}else{
+			IOLog("P8 UFS ring map failed for %llx\n",(unsigned long long)utr);
+		}
+	}
  IOLog("P8 UFS queue takeover disabled; RAM-disk root path is active\n");
  return false;
  if(!(rd(0x34)&1)||(rd(0x30)&3)!=3||(rd(0x20)&kUfsFatalStatus)||rd(0x58)||rd(0x78)){IOLog("P8 UFS requires idle, live firmware link; no reset attempted\n");return false;}

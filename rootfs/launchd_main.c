@@ -71,6 +71,28 @@ void main_user(void)
 	write_num(con, con);
 	write_str(con, "\n");
 
+	/* Prove the HFS+ root is readable from userspace: open our own binary. */
+	{
+		long self = sys_open("/sbin/launchd", 0 /* O_RDONLY */, 0);
+		unsigned char hdr[8] = { 0 };
+		long n = -1;
+		if (self >= 0) {
+			n = sys_read(self, hdr, sizeof(hdr));
+			sys_close(self);
+		}
+		write_str(con, "launchd stub: self-open=");
+		write_num(con, self);
+		write_str(con, " n=");
+		write_num(con, n);
+		write_str(con, " hdr=");
+		for (int i = 0; i < 4; i++) {
+			static const char hexd[] = "0123456789abcdef";
+			char b[2] = { hexd[(hdr[i] >> 4) & 15], hexd[hdr[i] & 15] };
+			sys_write(con, b, 2);
+		}
+		write_str(con, "\n");
+	}
+
 	r = sys_read(con, &c, 1);
 	write_str(con, "launchd stub: read(/dev/console) -> ");
 	write_num(con, r);
