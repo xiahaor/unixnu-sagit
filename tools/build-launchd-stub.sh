@@ -15,3 +15,9 @@ clang -target arm64-apple-ios16.0 -ffreestanding -fno-builtin -fno-stack-protect
 ld -arch arm64 -static -platform_version ios 16.0 16.0 -e _start \
     -o "$OUT/launchd" "$OUT/launchd_entry.o" "$OUT/launchd_main.o"
 echo "built $OUT/launchd ($(stat -c%s "$OUT/launchd") bytes)"
+# Second userspace program used to validate fork()+execve()+wait4().
+clang -target arm64-apple-ios16.0 -ffreestanding -fno-builtin -fno-stack-protector -O2 \
+    -c "$SRC/hello_main.c" -o "$OUT/hello_main.o"
+ld -arch arm64 -static -platform_version ios 16.0 16.0 -e _start \
+    -o "$OUT/hello" "$OUT/launchd_entry.o" "$OUT/hello_main.o"
+echo "built $OUT/hello ($(stat -c%s "$OUT/hello") bytes)"
