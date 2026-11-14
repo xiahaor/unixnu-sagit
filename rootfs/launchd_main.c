@@ -14,6 +14,20 @@ static long svc3(long num, long a, long b, long c)
 	return x0;
 }
 
+static long svc6(long num, long a, long b, long c, long d, long e, long f)
+{
+	register long x0 __asm__("x0") = a;
+	register long x1 __asm__("x1") = b;
+	register long x2 __asm__("x2") = c;
+	register long x3 __asm__("x3") = d;
+	register long x4 __asm__("x4") = e;
+	register long x5 __asm__("x5") = f;
+	register long x16 __asm__("x16") = num;
+	__asm__ volatile("svc #0x80\n b.cc 1f\n neg x0, x0\n1:"
+	    : "+r"(x0) : "r"(x1), "r"(x2), "r"(x3), "r"(x4), "r"(x5), "r"(x16) : "memory");
+	return x0;
+}
+
 static long sys_write(long fd, const void *buf, u64 n) { return svc3(4, fd, (long)buf, (long)n); }
 static long sys_read(long fd, void *buf, u64 n) { return svc3(3, fd, (long)buf, (long)n); }
 static long sys_open(const char *p, long flags, long mode) { return svc3(5, (long)p, flags, mode); }
@@ -90,6 +104,28 @@ void main_user(void)
 			char b[2] = { hexd[(hdr[i] >> 4) & 15], hexd[hdr[i] & 15] };
 			sys_write(con, b, 2);
 		}
+		write_str(con, "\n");
+	}
+
+	/* Launch the second userspace program the way real launchd does. */
+	{
+		static char *argv[2] = { (char *)"/sbin/hello", 0 };
+		int cpid = -1; /* the kernel writes a 32-bit pid_t */
+		long pr = svc6(244 /* posix_spawn */, (long)&cpid, (long)"/sbin/hello",
+		    0, 0, (long)argv, 0);
+		int st = 0x5A5A;
+		long w = -1;
+		if (pr == 0 && cpid > 0) {
+			w = svc3(7 /* wait4 */, (long)cpid, (long)&st, 0);
+		}
+		write_str(con, "launchd stub: posix_spawn r=");
+		write_num(con, pr);
+		write_str(con, " pid=");
+		write_num(con, cpid);
+		write_str(con, " wait=");
+		write_num(con, w);
+		write_str(con, " st=");
+		write_num(con, st);
 		write_str(con, "\n");
 	}
 
