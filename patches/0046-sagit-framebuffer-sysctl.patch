@@ -1,0 +1,79 @@
+--- /dev/null
++++ b/bsd/kern/sagit_fb.c
+@@ -0,0 +1,66 @@
++/*
++ * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
++ *
++ * The in-kernel video console already maps the scanout and keeps its
++ * geometry in the global "vinfo" (osfmk/console/video_console.c). This file
++ * exposes a tiny write-only sysctl (kern.sagitfb) that fills one rectangle
++ * into that scanout, so userspace can prove it can drive graphics without
++ * needing a full IOKit framebuffer driver.
++ */
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <sys/sysctl.h>
++#include <sys/kernel.h>
++#include <sys/malloc.h>
++#include <console/video_console.h>
++
++extern struct vc_info vinfo;
++
++struct sagit_fb_req {
++	uint32_t x;
++	uint32_t y;
++	uint32_t w;
++	uint32_t h;
++	uint32_t color;		/* 0x00RRGGBB, written as a 32-bit XRGB pixel */
++};
++
++static int
++sagit_fb_fill SYSCTL_HANDLER_ARGS
++{
++	struct sagit_fb_req r;
++	uint32_t *base;
++	uint32_t x, y, stride_px;
++	int err;
++
++	(void)oidp;
++	(void)arg1;
++	(void)arg2;
++
++	err = SYSCTL_IN(req, &r, sizeof(r));
++	if (err) {
++		return err;
++	}
++	if (vinfo.v_baseaddr == 0 || vinfo.v_depth != 32 || vinfo.v_rowbytes == 0) {
++		return ENODEV;
++	}
++	if (r.x >= vinfo.v_width || r.y >= vinfo.v_height ||
++	    r.w == 0 || r.h == 0 ||
++	    r.w > vinfo.v_width - r.x || r.h > vinfo.v_height - r.y) {
++		return EINVAL;
++	}
++
++	base = (uint32_t *)vinfo.v_baseaddr;
++	stride_px = vinfo.v_rowbytes / sizeof(uint32_t);
++	for (y = 0; y < r.h; y++) {
++		uint32_t *row = base + (r.y + y) * stride_px + r.x;
++		for (x = 0; x < r.w; x++) {
++			row[x] = r.color;
++		}
++	}
++	return 0;
++}
++
++SYSCTL_PROC(_kern, OID_AUTO, sagitfb,
++    CTLTYPE_STRUCT | CTLFLAG_WR,
++    0, 0, sagit_fb_fill, "S,sagit_fb_req",
++    "fill one framebuffer rectangle (bring-up test)");
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -404,6 +404,7 @@
+ bsd/kern/kern_subr.c			standard
+ bsd/kern/kern_synch.c			standard
+ bsd/kern/kern_sysctl.c			standard
++bsd/kern/sagit_fb.c			standard
+ bsd/kern/kern_newsysctl.c		standard
+ bsd/kern/kern_memorystatus.c	optional config_memorystatus
+ bsd/kern/kern_memorystatus_freeze.c	optional config_memorystatus

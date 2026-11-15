@@ -73,3 +73,6 @@
 ../0041-sagit-no-amfi-entitlements.patch
 ../0007-sagit-cpu-clusters.patch
 # ../0006-sagit-boot-ladder.patch   # ported after the plain 8796 build links
+# Userspace framebuffer access: a write-only kern.sagitfb sysctl that fills
+# one rectangle into the video console scanout (bring-up graphics test).
+../0046-sagit-framebuffer-sysctl.patch
