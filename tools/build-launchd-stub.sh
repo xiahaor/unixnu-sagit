@@ -31,3 +31,11 @@ for prog in svc2 heartbeat wtest dtest ltest looper stest crasher mtest ipcchild
       -o "$OUT/$prog" "$OUT/launchd_entry.o" "$OUT/${prog}_main.o"
   echo "built $OUT/$prog ($(stat -c%s "$OUT/$prog") bytes)"
 done
+
+# Thread trampoline for the bsdthread_create test.
+clang -target arm64-apple-ios16.0 -ffreestanding -fno-builtin -fno-stack-protector -O2 \
+    -c "$SRC/ttest_main.c" -o "$OUT/ttest_main.o"
+clang -target arm64-apple-ios16.0 -c "$SRC/thread_entry.s" -o "$OUT/thread_entry.o"
+ld -arch arm64 -static -platform_version ios 16.0 16.0 -e _start \
+    -o "$OUT/ttest" "$OUT/launchd_entry.o" "$OUT/ttest_main.o" "$OUT/thread_entry.o"
+echo "built $OUT/ttest ($(stat -c%s "$OUT/ttest") bytes)"
