@@ -5,3 +5,4 @@ __pycache__/
 *.img.json
 local.toml
 *.log
+*.bundle
