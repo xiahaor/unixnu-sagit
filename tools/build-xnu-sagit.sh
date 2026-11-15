@@ -117,8 +117,20 @@ export XNU_EXTRA_LD_ARCHIVES="-Wl,-force_load,$TREE_DIR/build/ram-block/libRamBl
 
 cd "$SRC"
 
+# Device-side patch for the libpthread kernel component: 8796 leaves new
+# pthreads waiting on their startup event and the kext source never calls
+# thread_start(), so inject it before the resolver assembles the tree.
+mkdir -p "$SRC/patches/libpthread"
+cp "$DEVICE_DIR"/patches/libpthread/*.patch "$SRC/patches/libpthread/" 2>/dev/null || true
+
 echo "== config =="
 ./unixnu defconfig sagit_defconfig -D "$DEVICE_DIR" 2>&1 | tail -1
+
+# The freshly generated tree only carries the device patches; the upstream
+# libpthread fixes live in UniXNU/patches/libpthread, so merge both sets.
+mkdir -p "$SRC/out/sagit/ios-16.7.16-20H392/sagit/tree/patches/libpthread"
+cp "$SRC"/patches/libpthread/*.patch "$SRC/out/sagit/ios-16.7.16-20H392/sagit/tree/patches/libpthread/" 2>/dev/null || true
+cp "$DEVICE_DIR"/patches/libpthread/*.patch "$SRC/out/sagit/ios-16.7.16-20H392/sagit/tree/patches/libpthread/" 2>/dev/null || true
 
 echo "== kernel =="
 ./unixnu build kernel
