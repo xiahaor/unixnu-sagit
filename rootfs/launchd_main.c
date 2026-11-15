@@ -122,6 +122,59 @@ static void run_service(const char *name, const char *path)
 	say("\n");
 }
 
+/* Start a service and restart it when it exits abnormally. */
+static void supervise_service(const char *name, const char *path, int max_restarts)
+{
+	int attempt, restarts = 0;
+	for (attempt = 1; attempt <= max_restarts + 1; attempt++) {
+		long pid = spawn_service(path);
+		int st = 0;
+		long w;
+		if (pid < 0) {
+			say("init: supervise ");
+			say(name);
+			say(" spawn failed errno=");
+			write_num(con_fd, -pid);
+			say("\n");
+			return;
+		}
+		w = svc4(7, pid, (long)&st, 0, 0);
+		say("init: supervise ");
+		say(name);
+		say(" attempt=");
+		write_num(con_fd, attempt);
+		say(" pid=");
+		write_num(con_fd, pid);
+		say(" wait=");
+		write_num(con_fd, w);
+		say(" exit=");
+		write_num(con_fd, (st >> 8) & 0xff);
+		say("\n");
+		if (((st >> 8) & 0xff) == 0) {
+			say("init: service ");
+			say(name);
+			say(" exited cleanly; supervision done\n");
+			return;
+		}
+		restarts++;
+		if (restarts > max_restarts) {
+			say("init: service ");
+			say(name);
+			say(" keeps failing; giving up after restarts=");
+			write_num(con_fd, max_restarts);
+			say("\n");
+			return;
+		}
+		say("init: restarting ");
+		say(name);
+		say(" (");
+		write_num(con_fd, restarts);
+		say("/");
+		write_num(con_fd, max_restarts);
+		say(")\n");
+	}
+}
+
 void main_user(void)
 {
 	long con;
@@ -162,6 +215,9 @@ void main_user(void)
 	for (i = 0; i < (int)(sizeof(services) / sizeof(services[0])); i++) {
 		run_service(services[i], services[i]);
 	}
+
+	/* Crash supervision: restart a failing service up to three times. */
+	supervise_service("/sbin/crasher", "/sbin/crasher", 3);
 
 	/* Heartbeat cadence: three ticks, two seconds apart. */
 	for (i = 0; i < 3; i++) {
