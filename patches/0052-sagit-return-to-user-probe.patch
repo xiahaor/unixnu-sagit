@@ -1,0 +1,14 @@
+--- a/osfmk/arm64/locore.s
++++ b/osfmk/arm64/locore.s
+@@ -835,6 +835,11 @@
+ 	.text
+ 	.globl EXT(arm64_thread_exception_return)
+ LEXT(arm64_thread_exception_return)
++	/* LOCAL (sagit): probe every return-to-user with the saved state. */
++	stp	x0, x1, [sp, #-16]!
++	mov	x0, x21
++	bl	EXT(sagit_probe_user_return)
++	ldp	x0, x1, [sp], #16
+ 	mrs		x0, TPIDR_EL1
+ 	add		x21, x0, ACT_CONTEXT
+ 	ldr		x21, [x21]

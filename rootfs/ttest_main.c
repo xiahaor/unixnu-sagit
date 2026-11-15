@@ -123,7 +123,7 @@ void main_user(void)
 		r.y = 0;
 		r.w = 0;
 		r.h = 0;
-		r.color = 0x00DEADBE;
+		r.color = 0x00A2B1E3; /* arm the return-to-user probe */
 		krc = svc6(274, (long)fbname, (long)sizeof(fbname) - 1, 0, 0,
 		    (long)&r, (long)sizeof(r));
 		say("ttest: kernel-thread probe rc=");

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/bsd/kern/sagit_fb.c
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,128 @@
 +/*
 + * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
 + *
@@ -16,6 +16,7 @@
 +#include <sys/kernel.h>
 +#include <sys/malloc.h>
 +#include <console/video_console.h>
++#include <kern/thread.h>
 +
 +extern struct vc_info vinfo;
 +
@@ -26,6 +27,27 @@
 +	uint32_t h;
 +	uint32_t color;		/* 0x00RRGGBB, written as a 32-bit XRGB pixel */
 +};
++
++/*
++ * Return-to-user probe: called from arm64_thread_exception_return with the
++ * saved user state pointer, prints the first few user returns after arming.
++ */
++int sagit_probe_user_armed;
++static unsigned int sagit_probe_user_count;
++
++void
++sagit_probe_user_return(void *state)
++{
++	uint64_t *s = (uint64_t *)state;
++
++	if (!sagit_probe_user_armed || sagit_probe_user_count >= 12) {
++		return;
++	}
++	sagit_probe_user_count++;
++	printf("sagit return: pc=0x%llx sp=0x%llx cpsr=0x%llx tid=%llu\n",
++	    (unsigned long long)s[32], (unsigned long long)s[31],
++	    (unsigned long long)s[33], (unsigned long long)thread_tid(current_thread()));
++}
 +
 +static int
 +sagit_fb_fill SYSCTL_HANDLER_ARGS
@@ -43,6 +65,14 @@
 +	if (err) {
 +		return err;
 +	}
++	/* Magic request from userspace: arm the return-to-user probe. */
++	if (r.color == 0x00A2B1E3 && r.x == 0x5A617469) {
++		sagit_probe_user_armed = 1;
++		sagit_probe_user_count = 0;
++		printf("sagit return probe: armed\n");
++		return 0;
++	}
++
 +	if (vinfo.v_baseaddr == 0 || vinfo.v_depth != 32 || vinfo.v_rowbytes == 0) {
 +		return ENODEV;
 +	}
