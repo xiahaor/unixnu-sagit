@@ -76,3 +76,5 @@
 # Userspace framebuffer access: a write-only kern.sagitfb sysctl that fills
 # one rectangle into the video console scanout (bring-up graphics test).
 ../0046-sagit-framebuffer-sysctl.patch
+# Start never-started threads from thread_resume (thread mutex held), so pthreads begin.
+../0049-sagit-start-thread-on-resume.patch

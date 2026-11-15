@@ -1,6 +1,6 @@
 --- a/kern/kern_support.c	2026-11-13 17:51:38.134396922 +0800
-+++ b/kern/kern_support.c	2026-11-15 10:56:07.014581708 +0800
-@@ -382,6 +382,18 @@
++++ b/kern/kern_support.c	2026-11-15 11:59:37.954364768 +0800
+@@ -382,6 +382,15 @@
  #error bsdthread_create  not defined for this architecture
  #endif
  
@@ -13,13 +13,10 @@
 +	    (void *)user_func, (void *)user_funcarg,
 +	    (void *)user_stack, flags, tsd_offset);
 +
-+	extern void thread_start(thread_t);
-+	thread_start(th);
-+
  	if (flags & PTHREAD_START_SETSCHED) {
  		/* Set scheduling parameters if needed */
  		thread_extended_policy_data_t    extinfo;
-@@ -434,6 +446,7 @@
+@@ -434,6 +443,7 @@
  
  	if (!start_suspended) {
  		kret = pthread_kern->thread_resume(th);

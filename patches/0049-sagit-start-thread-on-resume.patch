@@ -1,0 +1,19 @@
+--- a/osfmk/kern/thread_act.c
++++ b/osfmk/kern/thread_act.c
+@@ -422,6 +422,16 @@
+ 		if (thread->user_stop_count > 0) {
+ 			if (--thread->user_stop_count == 0) {
+ 				thread_release(thread);
++				/* LOCAL (sagit): a thread created by the pthread kext is
++				 * resumed here but 8796's thread_resume() never calls
++				 * thread_start(), so it stays bound to its startup wait.
++				 * We hold the thread mutex here, which thread_start()
++				 * requires, so start it now. */
++				if (!thread->started) {
++					thread_start(thread);
++				}
++				printf("sagit resume: started=%d state=%x\n",
++				    thread->started, thread->state);
+ 			}
+ 		} else {
+ 			result = KERN_FAILURE;
