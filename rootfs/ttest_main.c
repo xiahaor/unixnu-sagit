@@ -112,6 +112,25 @@ void main_user(void)
 		svc3(1, 1, 0, 0);
 	}
 
+	/* Ask the kernel to spawn a kernel thread (proves the scheduler path). */
+	{
+		struct fb_req {
+			unsigned int x, y, w, h, color;
+		} r;
+		static const char fbname[] = "kern.sagitfb";
+		long krc;
+		r.x = 0x5A617469; /* magic */
+		r.y = 0;
+		r.w = 0;
+		r.h = 0;
+		r.color = 0x00DEADBE;
+		krc = svc6(274, (long)fbname, (long)sizeof(fbname) - 1, 0, 0,
+		    (long)&r, (long)sizeof(r));
+		say("ttest: kernel-thread probe rc=");
+		say_num(krc);
+		say("\n");
+	}
+
 	/* Register this process with the pthread kext: (threadstart, wqthread,
 	 * pthsize, pthread_init_data, data_size, dispatchqueue_offset, tsd). */
 	sreg = svc7(366, (long)&thread_tramp, 0, 1024, 0, 0, 0, 0);
