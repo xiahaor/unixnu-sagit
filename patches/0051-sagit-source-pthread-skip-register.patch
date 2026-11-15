@@ -1,0 +1,19 @@
+--- a/bsd/kern/source_pthread_bootstrap.c
++++ b/bsd/kern/source_pthread_bootstrap.c
+@@ -15,9 +15,12 @@
+ 		.name = "source-libpthread",
+ 		.version = "519.120.4",
+ 	};
+-	source_pthread_status = pthread_start(&info, NULL);
+-	if (source_pthread_status != KERN_SUCCESS) {
+-		panic("source libpthread registration failed: %d", source_pthread_status);
+-	}
++
++	/* LOCAL (sagit): the original com.apple.kec.pthread kext in the prelink
++	 * closure registers this callback table itself; calling pthread_start()
++	 * here as well panics with "Re-initialisation of pthread kext callbacks".
++	 * Keep the component linked (offline fixture) but let the kext register. */
++	(void)info;
++	source_pthread_status = KERN_SUCCESS;
+ }
+ STARTUP(EARLY_BOOT, STARTUP_RANK_SECOND, source_pthread_bootstrap);

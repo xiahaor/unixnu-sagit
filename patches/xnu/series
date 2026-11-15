@@ -78,3 +78,5 @@
 ../0046-sagit-framebuffer-sysctl.patch
 # Start never-started threads from thread_resume (thread mutex held), so pthreads begin.
 ../0049-sagit-start-thread-on-resume.patch
+# Keep the source pthread component linked but let the original prelinked kext register.
+../0051-sagit-source-pthread-skip-register.patch
