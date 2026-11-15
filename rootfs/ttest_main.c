@@ -75,6 +75,25 @@ static void say_num(long v)
 	}
 }
 
+static void say_hex(unsigned long v)
+{
+	char b[20];
+	int i = 0;
+	static const char hx[] = "0123456789abcdef";
+	if (v == 0) {
+		say("0x0");
+		return;
+	}
+	while (v > 0 && i < (int)sizeof(b)) {
+		b[i++] = hx[v & 15];
+		v >>= 4;
+	}
+	say("0x");
+	while (i > 0) {
+		svc3(4, con, (long)&b[--i], 1);
+	}
+}
+
 extern void thread_tramp(void);
 volatile unsigned long thread_done;
 volatile unsigned long thread_count;
@@ -112,6 +131,16 @@ void main_user(void)
 		svc3(1, 1, 0, 0);
 	}
 
+	/* Register this process with the pthread kext: (threadstart, wqthread,
+	 * pthsize, pthread_init_data, data_size, dispatchqueue_offset, tsd). */
+	sreg = svc7(366, (long)&thread_tramp, 0, 1024, 0, 0, 0, 0);
+	say("ttest: bsdthread_register=");
+	say_num(sreg);
+	say(" (capability bits; non-negative = ok)\n");
+	if (sreg < 0) {
+		svc3(1, 2, 0, 0);
+	}
+
 	/* Ask the kernel to spawn a kernel thread (proves the scheduler path). */
 	{
 		struct fb_req {
@@ -126,19 +155,9 @@ void main_user(void)
 		r.color = 0x00A2B1E3; /* arm the return-to-user probe */
 		krc = svc6(274, (long)fbname, (long)sizeof(fbname) - 1, 0, 0,
 		    (long)&r, (long)sizeof(r));
-		say("ttest: kernel-thread probe rc=");
+		say("ttest: return-to-user probe arm rc=");
 		say_num(krc);
 		say("\n");
-	}
-
-	/* Register this process with the pthread kext: (threadstart, wqthread,
-	 * pthsize, pthread_init_data, data_size, dispatchqueue_offset, tsd). */
-	sreg = svc7(366, (long)&thread_tramp, 0, 1024, 0, 0, 0, 0);
-	say("ttest: bsdthread_register=");
-	say_num(sreg);
-	say(" (capability bits; non-negative = ok)\n");
-	if (sreg < 0) {
-		svc3(1, 2, 0, 0);
 	}
 
 	/* PTHREAD_START_CUSTOM = 0x01000000; stack top must be 16-aligned. */
@@ -155,6 +174,50 @@ void main_user(void)
 	for (i = 0; i < 100 && !thread_done; i++) {
 		svc4(240 /* nanosleep */, (long)&pause_ts[0], 0, 0, 0);
 	}
+	/* Read back the return-to-user probe samples (normal context, safe). */
+	{
+		static const char rname[] = "kern.sagitfbreport";
+		struct probe_sample {
+			unsigned long pc, sp, cpsr, tid;
+		};
+		struct probe_report {
+			unsigned int count, armed, bcount, reserved;
+			unsigned long btids[8];
+			struct probe_sample samples[16];
+		};
+		static struct probe_report rep;
+		unsigned long rlen = sizeof(rep);
+		long rrc = svc6(274, (long)rname, (long)sizeof(rname) - 1,
+		    (long)&rep, (long)&rlen, 0, 0);
+		unsigned int k;
+		say("ttest: return-probe rc=");
+		say_num(rrc);
+		say(" count=");
+		say_num((long)rep.count);
+		say(" bcount=");
+		say_num((long)rep.bcount);
+		say("\n");
+		{
+			unsigned int k;
+			for (k = 0; k < rep.bcount && k < 8; k++) {
+				say("ttest: bootstrap tid=");
+				say_num((long)rep.btids[k]);
+				say("\n");
+			}
+		}
+		for (k = 0; k < rep.count && k < 16; k++) {
+			say("ttest: sample pc=");
+			say_hex(rep.samples[k].pc);
+			say(" sp=");
+			say_hex(rep.samples[k].sp);
+			say(" cpsr=");
+			say_hex(rep.samples[k].cpsr);
+			say(" tid=");
+			say_num((long)rep.samples[k].tid);
+			say("\n");
+		}
+	}
+
 	say("ttest: done flag=");
 	say_num((long)thread_done);
 	say(" count=");

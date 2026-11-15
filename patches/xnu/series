@@ -81,3 +81,4 @@
 # Keep the source pthread component linked but let the original prelinked kext register.
 ../0051-sagit-source-pthread-skip-register.patch
 ../0052-sagit-return-to-user-probe.patch
+../0053-sagit-bootstrap-probe.patch

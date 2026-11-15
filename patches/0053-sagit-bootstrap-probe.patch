@@ -1,0 +1,13 @@
+--- a/osfmk/arm64/locore.s
++++ b/osfmk/arm64/locore.s
+@@ -822,6 +822,10 @@
+ 	.text
+ 	.globl EXT(thread_bootstrap_return)
+ LEXT(thread_bootstrap_return)
++	/* LOCAL (sagit): record every thread entering its kernel bootstrap. */
++	stp	x0, x1, [sp, #-16]!
++	bl	EXT(sagit_probe_bootstrap)
++	ldp	x0, x1, [sp], #16
+ #if CONFIG_DTRACE
+ 	bl		EXT(dtrace_thread_bootstrap)
+ #endif

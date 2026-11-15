@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/bsd/kern/sagit_fb.c
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,181 @@
 +/*
 + * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
 + *
@@ -30,24 +30,77 @@
 +
 +/*
 + * Return-to-user probe: called from arm64_thread_exception_return with the
-+ * saved user state pointer, prints the first few user returns after arming.
++ * saved user state. It only records samples in a global ring buffer; printing
++ * from the return path is unsafe, so userspace reads the buffer later.
 + */
++struct sagit_probe_sample {
++	uint64_t pc;
++	uint64_t sp;
++	uint64_t cpsr;
++	uint64_t tid;
++};
++
++struct sagit_probe_report {
++	uint32_t count;
++	uint32_t armed;
++	uint32_t bootstrap_count;
++	uint32_t reserved;
++	uint64_t bootstrap_tids[8];
++	struct sagit_probe_sample samples[16];
++};
++
 +int sagit_probe_user_armed;
-+static unsigned int sagit_probe_user_count;
++static struct sagit_probe_report sagit_probe_report;
++
++void
++sagit_probe_bootstrap(void)
++{
++	uint32_t n = sagit_probe_report.bootstrap_count;
++
++	if (!sagit_probe_user_armed || n >= 8) {
++		return;
++	}
++	sagit_probe_report.bootstrap_tids[n] = thread_tid(current_thread());
++	sagit_probe_report.bootstrap_count = n + 1;
++}
 +
 +void
 +sagit_probe_user_return(void *state)
 +{
 +	uint64_t *s = (uint64_t *)state;
++	uint32_t n;
 +
-+	if (!sagit_probe_user_armed || sagit_probe_user_count >= 12) {
++	if (!sagit_probe_user_armed) {
 +		return;
 +	}
-+	sagit_probe_user_count++;
-+	printf("sagit return: pc=0x%llx sp=0x%llx cpsr=0x%llx tid=%llu\n",
-+	    (unsigned long long)s[32], (unsigned long long)s[31],
-+	    (unsigned long long)s[33], (unsigned long long)thread_tid(current_thread()));
++	n = sagit_probe_report.count;
++	if (n >= 16) {
++		return;
++	}
++	sagit_probe_report.samples[n].pc = s[32];
++	sagit_probe_report.samples[n].sp = s[31];
++	sagit_probe_report.samples[n].cpsr = s[33];
++	sagit_probe_report.samples[n].tid = thread_tid(current_thread());
++	sagit_probe_report.count = n + 1;
 +}
++
++static int
++sagit_probe_report_get SYSCTL_HANDLER_ARGS
++{
++	int err;
++
++	(void)oidp;
++	(void)arg1;
++	(void)arg2;
++	sagit_probe_report.armed = sagit_probe_user_armed ? 1 : 0;
++	err = SYSCTL_OUT(req, &sagit_probe_report, sizeof(sagit_probe_report));
++	return err;
++}
++
++SYSCTL_PROC(_kern, OID_AUTO, sagitfbreport,
++    CTLTYPE_STRUCT | CTLFLAG_RD,
++    0, 0, sagit_probe_report_get, "S,sagit_probe_report",
++    "read the return-to-user probe samples (bring-up test)");
 +
 +static int
 +sagit_fb_fill SYSCTL_HANDLER_ARGS
@@ -68,8 +121,8 @@
 +	/* Magic request from userspace: arm the return-to-user probe. */
 +	if (r.color == 0x00A2B1E3 && r.x == 0x5A617469) {
 +		sagit_probe_user_armed = 1;
-+		sagit_probe_user_count = 0;
-+		printf("sagit return probe: armed\n");
++		sagit_probe_report.count = 0;
++		sagit_probe_report.bootstrap_count = 0;
 +		return 0;
 +	}
 +
