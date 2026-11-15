@@ -11,6 +11,26 @@
  */
 typedef unsigned long u64;
 
+/* There is no nanosleep syscall in Darwin; poll(0, 0, ms) blocks the calling
+ * thread for the requested time without needing any file descriptors. */
+static long sys_sleep(long sec, long nsec)
+{
+	long ms = sec * 1000 + nsec / 1000000;
+	if (ms < 1 && (sec != 0 || nsec != 0)) {
+		ms = 1;
+	}
+	{
+		register long x0 __asm__("x0") = 0;
+		register long x1 __asm__("x1") = 0;
+		register long x2 __asm__("x2") = ms;
+		register long x16 __asm__("x16") = 230; /* poll */
+		__asm__ volatile("svc #0x80\n b.cc 1f\n neg x0, x0\n1:"
+		    : "+r"(x0) : "r"(x1), "r"(x2), "r"(x16) : "memory");
+		return x0;
+	}
+}
+
+
 static long svc3(long num, long a, long b, long c)
 {
 	register long x0 __asm__("x0") = a;
@@ -179,7 +199,7 @@ void main_user(void)
 {
 	long con;
 	int i;
-	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest", "/sbin/mtest", "/sbin/ipctest", "/sbin/fbinfo" };
+	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest", "/sbin/mtest", "/sbin/ipctest", "/sbin/fbinfo", "/sbin/ttest" };
 
 	svc3(167 /* mount */, (long)"devfs", (long)"/dev", 0);
 	con = svc3(5 /* open */, (long)"/dev/console", 6 /* O_RDWR|O_NONBLOCK */, 0);
@@ -222,7 +242,7 @@ void main_user(void)
 	/* Heartbeat cadence: three ticks, two seconds apart. */
 	for (i = 0; i < 3; i++) {
 		static long ts[2] = { 2, 0 };
-		svc3(240 /* nanosleep */, (long)&ts[0], 0, 0);
+		sys_sleep(ts[0], ts[1]);
 		{
 			long pid = spawn_service("/sbin/heartbeat");
 			int st = 0;
@@ -257,6 +277,6 @@ void main_user(void)
 			write_num(con_fd, (st >> 8) & 0xff);
 			say("\n");
 		}
-		svc3(240, (long)&idle[0], 0, 0);
+		sys_sleep(idle[0], idle[1]);
 	}
 }

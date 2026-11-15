@@ -1,5 +1,25 @@
 /* Minimal userspace thread test: bsdthread_register + bsdthread_create. */
 typedef unsigned long u64;
+
+/* There is no nanosleep syscall in Darwin; poll(0, 0, ms) blocks the calling
+ * thread for the requested time without needing any file descriptors. */
+static long sys_sleep(long sec, long nsec)
+{
+	long ms = sec * 1000 + nsec / 1000000;
+	if (ms < 1 && (sec != 0 || nsec != 0)) {
+		ms = 1;
+	}
+	{
+		register long x0 __asm__("x0") = 0;
+		register long x1 __asm__("x1") = 0;
+		register long x2 __asm__("x2") = ms;
+		register long x16 __asm__("x16") = 230; /* poll */
+		__asm__ volatile("svc #0x80\n b.cc 1f\n neg x0, x0\n1:"
+		    : "+r"(x0) : "r"(x1), "r"(x2), "r"(x16) : "memory");
+		return x0;
+	}
+}
+
 static long svc3(long num, long a, long b, long c)
 {
 	register long x0 __asm__("x0") = a;
@@ -94,6 +114,34 @@ static void say_hex(unsigned long v)
 	}
 }
 
+struct timeval64 {
+	long tv_sec;
+	long tv_usec;
+	int pad;
+};
+
+static void gettime(struct timeval64 *tv)
+{
+	tv->tv_sec = 0;
+	tv->tv_usec = 0;
+	tv->pad = 0;
+	svc3(116 /* gettimeofday */, (long)tv, 0, 0);
+}
+
+static unsigned long fb_abstime(void)
+{
+	static const char rname[] = "kern.sagitfbreport";
+	static unsigned char buf[1024];
+	unsigned long len = sizeof(buf);
+	long rc = svc6(274, (long)rname, (long)sizeof(rname) - 1,
+	    (long)buf, (long)&len, 0, 0);
+	if (rc != 0 || len < 8) {
+		return 0;
+	}
+	/* mach_abs is the last 8 bytes of the report struct */
+	return *(unsigned long *)(buf + len - 8);
+}
+
 extern void thread_tramp(void);
 volatile unsigned long thread_done;
 volatile unsigned long thread_count;
@@ -170,9 +218,34 @@ void main_user(void)
 		svc3(1, 3, 0, 0);
 	}
 
-	/* Wait up to ~2 s for the thread to run. */
-	for (i = 0; i < 100 && !thread_done; i++) {
-		svc4(240 /* nanosleep */, (long)&pause_ts[0], 0, 0, 0);
+	/* Wait up to ~2 s for the thread to run, and measure the real elapsed time. */
+	{
+		unsigned long raw0, raw1, spin;
+		/* Is the kernel timebase advancing at all? */
+		raw0 = fb_abstime();
+		for (spin = 0; spin < 20000000UL; spin++) {
+			__asm__ volatile("" ::: "memory");
+		}
+		raw1 = fb_abstime();
+		say("ttest: timebase raw0=");
+		say_num((long)raw0);
+		say(" raw1=");
+		say_num((long)raw1);
+		say("\n");
+	}
+	{
+		/* Verify that nanosleep really waits, using the kernel timebase. */
+		unsigned long a0 = fb_abstime();
+		long nrc = sys_sleep(pause_ts[0], pause_ts[1]);
+		unsigned long a1 = fb_abstime();
+		say("ttest: nanosleep rc=");
+		say_num(nrc);
+		say(" abs_delta=");
+		say_num((long)(a1 - a0));
+		say("\n");
+		for (i = 0; i < 100 && !thread_done; i++) {
+			sys_sleep(pause_ts[0], pause_ts[1]);
+		}
 	}
 	/* Read back the return-to-user probe samples (normal context, safe). */
 	{
@@ -184,6 +257,7 @@ void main_user(void)
 			unsigned int count, armed, bcount, reserved;
 			unsigned long btids[8];
 			struct probe_sample samples[16];
+			unsigned long mach_abs;
 		};
 		static struct probe_report rep;
 		unsigned long rlen = sizeof(rep);

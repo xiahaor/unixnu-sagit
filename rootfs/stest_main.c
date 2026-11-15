@@ -1,5 +1,25 @@
 /* Signal test: start a long-running child, signal it, and decode wait status. */
 typedef unsigned long u64;
+
+/* There is no nanosleep syscall in Darwin; poll(0, 0, ms) blocks the calling
+ * thread for the requested time without needing any file descriptors. */
+static long sys_sleep(long sec, long nsec)
+{
+	long ms = sec * 1000 + nsec / 1000000;
+	if (ms < 1 && (sec != 0 || nsec != 0)) {
+		ms = 1;
+	}
+	{
+		register long x0 __asm__("x0") = 0;
+		register long x1 __asm__("x1") = 0;
+		register long x2 __asm__("x2") = ms;
+		register long x16 __asm__("x16") = 230; /* poll */
+		__asm__ volatile("svc #0x80\n b.cc 1f\n neg x0, x0\n1:"
+		    : "+r"(x0) : "r"(x1), "r"(x2), "r"(x16) : "memory");
+		return x0;
+	}
+}
+
 static long svc3(long num, long a, long b, long c)
 {
 	register long x0 __asm__("x0") = a;
@@ -84,7 +104,7 @@ static void test_signal(const char *name, long sig)
 	say("stest: spawned pid=");
 	say_num(pid);
 	say("\n");
-	svc3(240, (long)&pause1[0], 0, 0);
+	sys_sleep(1, 0);
 	k = svc3(37 /* kill */, pid, sig, 0);
 	say("stest: ");
 	say(name);

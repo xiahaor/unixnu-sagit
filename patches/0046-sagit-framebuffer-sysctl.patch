@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/bsd/kern/sagit_fb.c
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,183 @@
 +/*
 + * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
 + *
@@ -47,6 +47,7 @@
 +	uint32_t reserved;
 +	uint64_t bootstrap_tids[8];
 +	struct sagit_probe_sample samples[16];
++	uint64_t mach_abs;
 +};
 +
 +int sagit_probe_user_armed;
@@ -93,6 +94,7 @@
 +	(void)arg1;
 +	(void)arg2;
 +	sagit_probe_report.armed = sagit_probe_user_armed ? 1 : 0;
++	sagit_probe_report.mach_abs = mach_absolute_time();
 +	err = SYSCTL_OUT(req, &sagit_probe_report, sizeof(sagit_probe_report));
 +	return err;
 +}

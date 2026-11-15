@@ -1,19 +1,29 @@
 --- a/osfmk/kern/thread_act.c
 +++ b/osfmk/kern/thread_act.c
-@@ -422,6 +422,16 @@
+@@ -422,6 +422,26 @@
  		if (thread->user_stop_count > 0) {
  			if (--thread->user_stop_count == 0) {
  				thread_release(thread);
-+				/* LOCAL (sagit): a thread created by the pthread kext is
-+				 * resumed here but 8796's thread_resume() never calls
-+				 * thread_start(), so it stays bound to its startup wait.
-+				 * We hold the thread mutex here, which thread_start()
-+				 * requires, so start it now. */
++				/* LOCAL (sagit): if the thread has never run, start it and
++				 * pin it to the processor that is actually executing this
++				 * call; on this bring-up only one CPU is available, and a
++				 * run-queue that points at an offline processor leaves the
++				 * new pthread永远不被调度. */
 +				if (!thread->started) {
 +					thread_start(thread);
 +				}
-+				printf("sagit resume: started=%d state=%x\n",
-+				    thread->started, thread->state);
++				if (thread->bound_processor == PROCESSOR_NULL) {
++					thread->bound_processor = current_processor();
++				}
++				{
++					extern unsigned int ml_get_cpu_count(void);
++					extern uint32_t processor_avail_count;
++					printf("sagit resume: started=%d state=%x suspend=%d runq=%p bound=%p cur=%p pcpus=%u ncpu=%u\n",
++					    thread->started, thread->state, thread->suspend_count,
++					    (void *)thread->runq, (void *)thread->bound_processor,
++					    (void *)current_processor(), processor_avail_count,
++					    ml_get_cpu_count());
++				}
  			}
  		} else {
  			result = KERN_FAILURE;
