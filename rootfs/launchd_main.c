@@ -179,7 +179,7 @@ void main_user(void)
 {
 	long con;
 	int i;
-	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest", "/sbin/mtest", "/sbin/ipctest" };
+	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest", "/sbin/mtest", "/sbin/ipctest", "/sbin/fbinfo" };
 
 	svc3(167 /* mount */, (long)"devfs", (long)"/dev", 0);
 	con = svc3(5 /* open */, (long)"/dev/console", 6 /* O_RDWR|O_NONBLOCK */, 0);
@@ -244,16 +244,6 @@ void main_user(void)
 	}
 
 	say("init: all services started; staying alive as pid 1\n");
-
-	/* Everything above is the console's last output: run the graphics test
-	 * now, silently, so its rectangles and text are not overwritten. */
-	{
-		long gpid = spawn_service("/sbin/fbtest");
-		if (gpid > 0) {
-			int gst = 0;
-			(void)svc4(7, gpid, (long)&gst, 0, 0);
-		}
-	}
 
 	/* Supervisor idle loop: reap strays if any, otherwise sleep. */
 	for (;;) {

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/bsd/kern/sagit_fb.c
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,98 @@
 +/*
 + * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
 + *
@@ -67,6 +67,38 @@
 +    CTLTYPE_STRUCT | CTLFLAG_WR,
 +    0, 0, sagit_fb_fill, "S,sagit_fb_req",
 +    "fill one framebuffer rectangle (bring-up test)");
++
++struct sagit_fb_info {
++	uint32_t width;
++	uint32_t height;
++	uint32_t depth;
++	uint32_t rowbytes;
++	uint64_t physaddr;
++};
++
++static int
++sagit_fb_info_get SYSCTL_HANDLER_ARGS
++{
++	struct sagit_fb_info info;
++	int err;
++
++	(void)oidp;
++	(void)arg1;
++	(void)arg2;
++
++	info.width = vinfo.v_width;
++	info.height = vinfo.v_height;
++	info.depth = vinfo.v_depth;
++	info.rowbytes = vinfo.v_rowbytes;
++	info.physaddr = vinfo.v_physaddr;
++	err = SYSCTL_OUT(req, &info, sizeof(info));
++	return err;
++}
++
++SYSCTL_PROC(_kern, OID_AUTO, sagitfbinfo,
++    CTLTYPE_STRUCT | CTLFLAG_RD,
++    0, 0, sagit_fb_info_get, "S,sagit_fb_info",
++    "query video console framebuffer geometry (bring-up test)");
 --- a/bsd/conf/files
 +++ b/bsd/conf/files
 @@ -404,6 +404,7 @@
