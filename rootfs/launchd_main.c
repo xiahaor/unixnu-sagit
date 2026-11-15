@@ -179,7 +179,7 @@ void main_user(void)
 {
 	long con;
 	int i;
-	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest" };
+	static const char *services[] = { "/sbin/hello", "/sbin/svc2", "/sbin/wtest", "/sbin/dtest", "/sbin/ltest", "/sbin/stest", "/sbin/mtest" };
 
 	svc3(167 /* mount */, (long)"devfs", (long)"/dev", 0);
 	con = svc3(5 /* open */, (long)"/dev/console", 6 /* O_RDWR|O_NONBLOCK */, 0);

@@ -23,8 +23,8 @@ ld -arch arm64 -static -platform_version ios 16.0 16.0 -e _start \
 echo "built $OUT/hello ($(stat -c%s "$OUT/hello") bytes)"
 
 # Extra init services for the minimal-init experiment.
-for prog in svc2 heartbeat wtest dtest ltest looper stest crasher; do
-  case $prog in svc2) srcname=svc_main.c;; wtest) srcname=wtest_main.c;; dtest) srcname=dtest_main.c;; ltest) srcname=ltest_main.c;; looper) srcname=looper_main.c;; stest) srcname=stest_main.c;; crasher) srcname=crasher_main.c;; *) srcname=${prog}_main.c;; esac
+for prog in svc2 heartbeat wtest dtest ltest looper stest crasher mtest; do
+  case $prog in svc2) srcname=svc_main.c;; wtest) srcname=wtest_main.c;; dtest) srcname=dtest_main.c;; ltest) srcname=ltest_main.c;; looper) srcname=looper_main.c;; stest) srcname=stest_main.c;; crasher) srcname=crasher_main.c;; mtest) srcname=mtest_main.c;; *) srcname=${prog}_main.c;; esac
   clang -target arm64-apple-ios16.0 -ffreestanding -fno-builtin -fno-stack-protector -O2 \
       -c "$SRC/$srcname" -o "$OUT/${prog}_main.o"
   ld -arch arm64 -static -platform_version ios 16.0 16.0 -e _start \
