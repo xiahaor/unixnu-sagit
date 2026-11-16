@@ -82,3 +82,5 @@
 ../0051-sagit-source-pthread-skip-register.patch
 ../0052-sagit-return-to-user-probe.patch
 ../0053-sagit-bootstrap-probe.patch
+# MSM8998 GICv3 + EL1 virtual timer bring-up (BCM2837 build on real hardware).
+../0054-sagit-msm8998-gic-timer.patch

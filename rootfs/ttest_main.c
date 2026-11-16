@@ -220,6 +220,20 @@ void main_user(void)
 
 	/* Wait up to ~2 s for the thread to run, and measure the real elapsed time. */
 	{
+		struct fb_req {
+			unsigned int x, y, w, h, color;
+		} g;
+		static const char fbname2[] = "kern.sagitfb";
+		g.x = 0x5A617469;
+		g.y = 0;
+		g.w = 0;
+		g.h = 0;
+		g.color = 0x00C1C1C1; /* initialize GIC/timer */
+		(void)svc6(274, (long)fbname2, (long)sizeof(fbname2) - 1, 0, 0,
+		    (long)&g, (long)sizeof(g));
+	}
+
+	{
 		unsigned long raw0, raw1, spin;
 		/* Is the kernel timebase advancing at all? */
 		raw0 = fb_abstime();

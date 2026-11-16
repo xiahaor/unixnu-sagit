@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/bsd/kern/sagit_fb.c
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,193 @@
 +/*
 + * sagit_fb.c - minimal userspace framebuffer access for the sagit bring-up.
 + *
@@ -120,6 +120,16 @@
 +	if (err) {
 +		return err;
 +	}
++	/* Magic request from userspace: initialize the MSM8998 GIC and report. */
++	if (r.color == 0x00C1C1C1 && r.x == 0x5A617469) {
++		extern int pe_msm8998_gic_force_init(void);
++		extern void pe_msm8998_gic_report(void);
++		int gic_rc = pe_msm8998_gic_force_init();
++		printf("sagit gic: force init rc=%d\n", gic_rc);
++		pe_msm8998_gic_report();
++		return 0;
++	}
++
 +	/* Magic request from userspace: arm the return-to-user probe. */
 +	if (r.color == 0x00A2B1E3 && r.x == 0x5A617469) {
 +		sagit_probe_user_armed = 1;
