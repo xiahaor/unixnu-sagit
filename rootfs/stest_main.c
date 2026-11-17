@@ -104,7 +104,14 @@ static void test_signal(const char *name, long sig)
 	say("stest: spawned pid=");
 	say_num(pid);
 	say("\n");
-	sys_sleep(1, 0);
+	{
+		/* Busy-wait instead of sleeping: the timer path is still being
+		 * brought up, and a blocked sleep would stall the whole boot. */
+		volatile unsigned long spin;
+		for (spin = 0; spin < 50000000UL; spin++) {
+			__asm__ volatile("" ::: "memory");
+		}
+	}
 	k = svc3(37 /* kill */, pid, sig, 0);
 	say("stest: ");
 	say(name);
